@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2020 "Neo4j,"
+ * Copyright (c) "Neo4j"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
@@ -54,10 +54,8 @@ public interface GeometryEncoder extends EnvelopeDecoder {
      * that represents a layer. This node is expected to have a property containing the class name
      * of the GeometryEncoder for that layer, and it will be constructed and passed the layer using
      * this method, allowing the Layer and the GeometryEncoder to interact.
-     * 
-     * @param layer recently created Layer class
      */
-    void init(Layer layer);
+    void init(Transaction tx, Layer layer);
 
 	/**
 	 * This method is called to store a bounding box for the geometry to the database. It should write it to the

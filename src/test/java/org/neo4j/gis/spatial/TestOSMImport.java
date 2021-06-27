@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2020 "Neo4j,"
+ * Copyright (c) "Neo4j"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
@@ -19,14 +19,14 @@
  */
 package org.neo4j.gis.spatial;
 
-import org.locationtech.jts.geom.Envelope;
-import org.locationtech.jts.geom.Geometry;
 import org.geotools.data.DataStore;
 import org.geotools.data.neo4j.Neo4jSpatialDataStore;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
 import org.neo4j.gis.spatial.index.IndexManager;
 import org.neo4j.gis.spatial.osm.*;
 import org.neo4j.gis.spatial.osm.OSMDataset.Way;
@@ -125,6 +125,8 @@ public class TestOSMImport extends Neo4jTestCase {
             checkChangesetsAndUsers(tx, layer);
             checkOSMSearch(tx, layer);
             tx.commit();
+        } catch (Exception e) {
+            throw new SpatialDatabaseException("Failed to check OSM layer '" + layerName + "':" + e.getMessage(), e);
         }
         checkFeatureCount(db, indexCount, layerName);
     }

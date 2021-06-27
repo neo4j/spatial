@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2020 "Neo4j,"
+ * Copyright (c) "Neo4j"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
@@ -19,22 +19,27 @@
  */
 package org.neo4j.gis.spatial.osm;
 
-import java.io.File;
-import java.util.HashMap;
-
 import org.geotools.referencing.crs.DefaultGeographicCRS;
 import org.json.simple.JSONObject;
 import org.neo4j.gis.spatial.*;
+import org.neo4j.gis.spatial.merge.MergeUtils;
+import org.neo4j.gis.spatial.rtree.Listener;
 import org.neo4j.gis.spatial.rtree.NullListener;
-import org.neo4j.graphdb.*;
+import org.neo4j.graphdb.Direction;
+import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
+import org.neo4j.graphdb.Transaction;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
+
+import java.io.File;
+import java.util.HashMap;
 
 /**
  * Instances of this class represent the primary layer of the OSM Dataset. It
  * extends the DynamicLayer class because the OSM dataset can have many layers.
  * Only one is primary, the layer containing all ways. Other layers are dynamic.
  */
-public class OSMLayer extends DynamicLayer {
+public class OSMLayer extends DynamicLayer implements MergeUtils.Mergeable {
     private OSMDataset osmDataset;
 
     @Override
@@ -54,52 +59,58 @@ public class OSMLayer extends DynamicLayer {
 
     /**
      * OSM always uses WGS84 CRS; so we return that.
-     *
-     * @param tx
      */
     public CoordinateReferenceSystem getCoordinateReferenceSystem(Transaction tx) {
-        try {
-            return DefaultGeographicCRS.WGS84;
-        } catch (Exception e) {
-            System.err.println("Failed to decode WGS84 CRS: " + e.getMessage());
-            e.printStackTrace(System.err);
-            return null;
-        }
+        return DefaultGeographicCRS.WGS84;
     }
 
     protected void clear(Transaction tx) {
         indexWriter.clear(tx, new NullListener());
     }
 
-    public Node addWay(Transaction tx, Node way) {
-        return addWay(tx, way, false);
+    @Override
+    public void delete(Transaction tx, Listener monitor) {
+        Relationship datasetRel = this.getLayerNode(tx).getSingleRelationship(SpatialRelationshipTypes.LAYERS, Direction.INCOMING);
+        if (datasetRel != null) {
+            Node datasetNode = datasetRel.getStartNode();
+            datasetRel.delete();
+            datasetNode.delete();
+        }
+        super.delete(tx, monitor);
     }
 
     public Node addWay(Transaction tx, Node way, boolean verifyGeom) {
         Relationship geomRel = way.getSingleRelationship(OSMRelation.GEOM, Direction.OUTGOING);
         if (geomRel != null) {
-            Node geomNode = geomRel.getEndNode();
-            try {
-                // This is a test of the validity of the geometry, throws exception on error
-                if (verifyGeom)
-                    getGeometryEncoder().decodeGeometry(geomNode);
-                indexWriter.add(tx, geomNode);
-            } catch (Exception e) {
-                System.err.println("Failed geometry test on node " + geomNode.getProperty("name", geomNode.toString()) + ": "
-                        + e.getMessage());
-                for (String key : geomNode.getPropertyKeys()) {
-                    System.err.println("\t" + key + ": " + geomNode.getProperty(key));
-                }
+            return addGeomNode(tx, geomRel.getEndNode(), verifyGeom);
+        } else {
+            return null;
+        }
+    }
+
+    public Node addGeomNode(Transaction tx, Node geomNode, boolean verifyGeom) {
+        try {
+            // This is a test of the validity of the geometry, throws exception on error
+            if (verifyGeom)
+                getGeometryEncoder().decodeGeometry(geomNode);
+            indexWriter.add(tx, geomNode);
+        } catch (Exception e) {
+            System.err.printf("Failed geometry test on node '%s': %s%n", geomNode.getProperty("name", geomNode.toString()), e.getMessage());
+            for (String key : geomNode.getPropertyKeys()) {
+                System.err.println("\t" + key + ": " + geomNode.getProperty(key));
+            }
+            Relationship geomRel = geomNode.getSingleRelationship(OSMRelation.GEOM, Direction.INCOMING);
+            if (geomRel != null) {
+                Node way = geomRel.getStartNode();
                 System.err.println("For way node " + way);
                 for (String key : way.getPropertyKeys()) {
                     System.err.println("\t" + key + ": " + way.getProperty(key));
                 }
-                // e.printStackTrace(System.err);
+            } else {
+                System.err.printf("Geometry node %d has no connected OSM model node%n", geomNode.getId());
             }
-            return geomNode;
-        } else {
-            return null;
         }
+        return geomNode;
     }
 
     /**
@@ -109,7 +120,6 @@ public class OSMLayer extends DynamicLayer {
      * generate a Geometry. There is no restriction on a node belonging to multiple datasets, or
      * multiple layers within the same dataset.
      *
-     * @param tx
      * @return iterable over geometry nodes in the dataset
      */
     public Iterable<Node> getAllGeometryNodes(Transaction tx) {
@@ -134,7 +144,6 @@ public class OSMLayer extends DynamicLayer {
      * to the way node and then to the tags node to test if the way is a
      * residential street.
      */
-    @SuppressWarnings("unchecked")
     public DynamicLayerConfig addDynamicLayerOnWayTags(Transaction tx, String name, int type, HashMap<?, ?> tags) {
         JSONObject query = new JSONObject();
         if (tags != null && !tags.isEmpty()) {
@@ -260,5 +269,19 @@ public class OSMLayer extends DynamicLayer {
     public File getStyle() {
         // TODO: Replace with a proper resource lookup, since this will be in the JAR
         return new File("dev/neo4j/neo4j-spatial/src/main/resources/sld/osm/osm.sld");
+    }
+
+    @Override
+    public long mergeFrom(Transaction tx, EditableLayer other) {
+        if (other instanceof OSMLayer) {
+            try {
+                OSMMerger merger = new OSMMerger(this);
+                return merger.merge(tx, (OSMLayer) other);
+            } catch (Exception e) {
+                throw new SpatialDatabaseException("Failed to merge OSM layer " + other.getName() + " into " + this.getName() + ": " + e.getMessage(), e);
+            }
+        } else {
+            throw new IllegalArgumentException("Cannot merge non-OSM layer into OSM layer: '" + other.getName() + "' is not OSM");
+        }
     }
 }

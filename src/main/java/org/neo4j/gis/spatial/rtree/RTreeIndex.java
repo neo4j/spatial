@@ -1,5 +1,6 @@
 /*
- * Copyright (c) 2002-2020 Neo4j Sweden AB
+ * Copyright (c) "Neo4j"
+ * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
  *
@@ -676,7 +677,7 @@ public class RTreeIndex implements SpatialIndexWriter, Configurable {
 
     @Override
     public void clear(Transaction tx, final Listener monitor) {
-        removeAll(tx, false, new NullListener());
+        removeAll(tx, false, monitor);
         initIndexRoot(tx);
         initIndexMetadata(tx);
     }

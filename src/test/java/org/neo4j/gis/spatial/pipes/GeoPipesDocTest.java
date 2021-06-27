@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2020 "Neo4j,"
+ * Copyright (c) "Neo4j"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
@@ -19,12 +19,6 @@
  */
 package org.neo4j.gis.spatial.pipes;
 
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Envelope;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.util.AffineTransformation;
-import org.locationtech.jts.io.ParseException;
-import org.locationtech.jts.io.WKTReader;
 import org.geotools.data.neo4j.Neo4jFeatureBuilder;
 import org.geotools.data.neo4j.StyledImageExporter;
 import org.geotools.feature.FeatureCollection;
@@ -36,6 +30,12 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.util.AffineTransformation;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
 import org.neo4j.annotations.documented.Documented;
 import org.neo4j.gis.spatial.*;
 import org.neo4j.gis.spatial.filter.SearchIntersectWindow;
@@ -54,7 +54,7 @@ import org.neo4j.test.TestDatabaseManagementServiceBuilder;
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.NoSuchElementException;
 
 import static org.junit.Assert.*;
@@ -142,14 +142,12 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
      */
     @Test
     @Documented("search_within_geometry")
-    public void search_within_geometry() throws CQLException {
+    public void search_within_geometry() {
         // tag::search_within_geometry[]
         GeoPipeline pipeline = GeoPipeline
                 .startWithinSearch(tx, osmLayer, osmLayer.getGeometryFactory().toGeometry(new Envelope(10, 20, 50, 60)));
         // end::search_within_geometry[]
-        assertEquals(
-                2,
-                pipeline.count());
+        assertEquals(2, pipeline.count());
     }
 
     @Test
@@ -206,12 +204,10 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
         // end::affine_transformation[]
         addImageSnippet(boxesLayer, pipeline, getTitle());
 
-        GeoPipeline original = GeoPipeline.start(tx, osmLayer).copyDatabaseRecordProperties(tx).sort(
-                "name");
+        GeoPipeline original = GeoPipeline.start(tx, osmLayer).copyDatabaseRecordProperties(tx).sort("name");
 
         GeoPipeline translated = GeoPipeline.start(tx, osmLayer).applyAffineTransform(
-                AffineTransformation.translationInstance(10, 25)).copyDatabaseRecordProperties(tx).sort(
-                "name");
+                AffineTransformation.translationInstance(10, 25)).copyDatabaseRecordProperties(tx).sort("name");
 
         for (int k = 0; k < 2; k++) {
             Coordinate[] coords = original.next().getGeometry().getCoordinates();
@@ -228,10 +224,8 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
     public void calculate_area() {
         GeoPipeline pipeline = GeoPipeline.start(tx, boxesLayer).calculateArea().sort("Area");
 
-        assertEquals((Double) pipeline.next().getProperties().get("Area"),
-                1.0, 0);
-        assertEquals((Double) pipeline.next().getProperties().get("Area"),
-                8.0, 0);
+        assertEquals((Double) pipeline.next().getProperties().get("Area"), 1.0, 0);
+        assertEquals((Double) pipeline.next().getProperties().get("Area"), 8.0, 0);
     }
 
     @Test
@@ -298,10 +292,8 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
 
         pipeline = GeoPipeline.start(tx, boxesLayer).toCentroid().createWellKnownText().copyDatabaseRecordProperties(tx).sort("name");
 
-        assertEquals("POINT (12.5 26.5)",
-                pipeline.next().getProperties().get("WellKnownText"));
-        assertEquals("POINT (4 4)",
-                pipeline.next().getProperties().get("WellKnownText"));
+        assertEquals("POINT (12.5 26.5)", pipeline.next().getProperties().get("WellKnownText"));
+        assertEquals("POINT (4 4)", pipeline.next().getProperties().get("WellKnownText"));
     }
 
     /**
@@ -349,8 +341,7 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
 
         pipeline = GeoPipeline.start(tx, concaveLayer).toConvexHull().createWellKnownText();
 
-        assertEquals("POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))",
-                pipeline.next().getProperties().get("WellKnownText"));
+        assertEquals("POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))", pipeline.next().getProperties().get("WellKnownText"));
     }
 
     /**
@@ -667,7 +658,7 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
      */
     @Documented("unite_all")
     @Test
-    public void unite_all() {
+    public void unite_all() throws ParseException {
         // tag::unite_all[]
         GeoPipeline pipeline = GeoPipeline.start(tx, intersectionLayer).unionAll();
         // end::unite_all[]
@@ -677,9 +668,7 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
                 .unionAll()
                 .createWellKnownText();
 
-        assertEquals(
-                "POLYGON ((0 0, 0 5, 2 5, 2 6, 4 6, 4 10, 10 10, 10 4, 6 4, 6 2, 5 2, 5 0, 0 0))",
-                pipeline.next().getProperty(tx, "WellKnownText"));
+        assertWKTGeometryEquals(intersectionLayer, pipeline, "POLYGON ((0 0, 0 5, 2 5, 2 6, 4 6, 4 10, 10 10, 10 4, 6 4, 6 2, 5 2, 5 0, 0 0))");
 
         try {
             pipeline.next();
@@ -702,7 +691,7 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
      */
     @Documented("intersect_all")
     @Test
-    public void intersect_all() {
+    public void intersect_all() throws ParseException {
         // tag::intersect_all[]
         GeoPipeline pipeline = GeoPipeline.start(tx, intersectionLayer).intersectAll();
         // end::intersect_all[]
@@ -712,8 +701,7 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
                 .intersectAll()
                 .createWellKnownText();
 
-        assertEquals("POLYGON ((4 5, 5 5, 5 4, 4 4, 4 5))",
-                pipeline.next().getProperty(tx, "WellKnownText"));
+        assertWKTGeometryEquals(intersectionLayer, pipeline, "POLYGON ((4 5, 5 5, 5 4, 4 4, 4 5))");
 
         try {
             pipeline.next();
@@ -954,17 +942,11 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
             equalLayer = (EditableLayerImpl) spatial.getOrCreateEditableLayer(tx, "equal");
             equalLayer.setExtraPropertyNames(new String[]{"id", "name"}, tx);
             equalLayer.setCoordinateReferenceSystem(tx, DefaultEngineeringCRS.GENERIC_2D);
-            reader = new WKTReader(intersectionLayer.getGeometryFactory());
-            equalLayer.add(tx, reader.read("POLYGON ((0 0, 0 5, 5 5, 5 0, 0 0))"),
-                    new String[]{"id", "name"}, new Object[]{1, "equal"});
-            equalLayer.add(tx, reader.read("POLYGON ((0 0, 0.1 5, 5 5, 5 0, 0 0))"),
-                    new String[]{"id", "name"}, new Object[]{2, "tolerance"});
-            equalLayer.add(tx, reader.read("POLYGON ((0 5, 5 5, 5 0, 0 0, 0 5))"),
-                    new String[]{"id", "name"}, new Object[]{3,
-                            "different order"});
-            equalLayer.add(tx,
-                    reader.read("POLYGON ((0 0, 0 2, 0 4, 0 5, 5 5, 5 3, 5 2, 5 0, 0 0))"),
-                    new String[]{"id", "name"}, new Object[]{4, "topo equal"});
+            reader = new WKTReader(equalLayer.getGeometryFactory());
+            equalLayer.add(tx, reader.read("POLYGON ((0 0, 0 5, 5 5, 5 0, 0 0))"), new String[]{"id", "name"}, new Object[]{1, "equal"});
+            equalLayer.add(tx, reader.read("POLYGON ((0 0, 0.1 5, 5 5, 5 0, 0 0))"), new String[]{"id", "name"}, new Object[]{2, "tolerance"});
+            equalLayer.add(tx, reader.read("POLYGON ((0 5, 5 5, 5 0, 0 0, 0 5))"), new String[]{"id", "name"}, new Object[]{3, "different order"});
+            equalLayer.add(tx, reader.read("POLYGON ((0 0, 0 2, 0 4, 0 5, 5 5, 5 3, 5 2, 5 0, 0 0))"), new String[]{"id", "name"}, new Object[]{4, "topo equal"});
 
             linesLayer = (EditableLayerImpl) spatial.getOrCreateEditableLayer(tx, "lines");
             linesLayer.setCoordinateReferenceSystem(tx, DefaultEngineeringCRS.GENERIC_2D);
@@ -975,15 +957,25 @@ public class GeoPipesDocTest extends AbstractJavaDocTestBase {
         }
     }
 
-    private static void loadTestOsmData(String layerName, int commitInterval)
-            throws Exception {
+    private static void loadTestOsmData(String layerName, int commitInterval) throws Exception {
         String osmPath = "./" + layerName;
-        System.out.println("\n=== Loading layer " + layerName + " from "
-                + osmPath + " ===");
+        System.out.println("\n=== Loading layer " + layerName + " from " + osmPath + " ===");
         OSMImporter importer = new OSMImporter(layerName);
-        importer.setCharset(Charset.forName("UTF-8"));
+        importer.setCharset(StandardCharsets.UTF_8);
         importer.importFile(db, osmPath);
         importer.reIndex(db, commitInterval);
+    }
+
+    private void assertWKTGeometryEquals(EditableLayerImpl layer, GeoPipeline pipeline, String expectedWKT) throws ParseException {
+        WKTReader reader = new WKTReader(layer.getGeometryFactory());
+        Geometry expected = reader.read(expectedWKT);
+        Geometry actual = reader.read(pipeline.next().getProperty(tx, "WellKnownText").toString());
+        assertEquals("Expected matching geometry types", expected.getGeometryType(), actual.getGeometryType());
+        assertEquals("Expected matching geometry areas", expected.getArea(), actual.getArea(), 0.000001);
+        // JTS will handle different starting coordinates for matching geometries, so we check with JTS first, and only if that fails run the assertion to get the appropriate error message
+        if (!expected.equals(actual)) {
+            assertEquals("Expected matching geometries", expected, actual);
+        }
     }
 
     @Before

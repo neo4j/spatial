@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2020 "Neo4j,"
+ * Copyright (c) "Neo4j"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
@@ -20,21 +20,19 @@
 package org.neo4j.gis.spatial;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.neo4j.gis.spatial.rtree.Envelope;
-import org.neo4j.graphdb.Node;
-import org.neo4j.graphdb.Entity;
-
 import org.locationtech.jts.geom.Geometry;
+import org.neo4j.gis.spatial.rtree.Envelope;
+import org.neo4j.graphdb.Entity;
+import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Transaction;
 
 public abstract class AbstractGeometryEncoder implements GeometryEncoder, Constants {
 
     protected String bboxProperty = PROP_BBOX;
-
-    // Public methods
+    protected Layer layer;
 
     @Override
-    public void init(Layer layer) {
+    public void init(Transaction tx, Layer layer) {
         this.layer = layer;
     }
 
@@ -123,8 +121,4 @@ public abstract class AbstractGeometryEncoder implements GeometryEncoder, Consta
     public String getSignature() {
         return "GeometryEncoder(bbox='" + bboxProperty + "')";
     }
-
-    // Attributes
-
-    protected Layer layer;
 }

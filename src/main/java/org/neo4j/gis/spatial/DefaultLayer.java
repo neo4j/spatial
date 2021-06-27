@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2002-2020 "Neo4j,"
+ * Copyright (c) "Neo4j"
  * Neo4j Sweden AB [http://neo4j.com]
  *
  * This file is part of Neo4j Spatial.
@@ -32,8 +32,8 @@ import org.neo4j.gis.spatial.rtree.Envelope;
 import org.neo4j.gis.spatial.rtree.Listener;
 import org.neo4j.gis.spatial.rtree.filter.SearchFilter;
 import org.neo4j.gis.spatial.utilities.GeotoolsAdapter;
-import org.neo4j.graphdb.Direction;
 import org.neo4j.graphdb.Node;
+import org.neo4j.graphdb.Relationship;
 import org.neo4j.graphdb.Transaction;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 
@@ -51,8 +51,12 @@ import java.util.*;
  * on the SpatialDatabaseService for correct initialization.
  */
 public class DefaultLayer implements Constants, Layer, SpatialDataset {
-
-    // Public methods
+    private String name;
+    protected Long layerNodeId = -1L;
+    private GeometryEncoder geometryEncoder;
+    private GeometryFactory geometryFactory;
+    protected LayerIndexReader indexReader;
+    protected SpatialIndexWriter indexWriter;
 
     public String getName() {
         return name;
@@ -220,7 +224,7 @@ public class DefaultLayer implements Constants, Layer, SpatialDataset {
         } else {
             this.geometryEncoder = new WKBGeometryEncoder();
         }
-        this.geometryEncoder.init(this);
+        this.geometryEncoder.init(tx, this);
 
         // index must be created *after* geometryEncoder
         if (layerNode.hasProperty(PROP_INDEX_CLASS)) {
@@ -259,26 +263,13 @@ public class DefaultLayer implements Constants, Layer, SpatialDataset {
     public void delete(Transaction tx, Listener monitor) {
         indexWriter.removeAll(tx, true, monitor);
         Node layerNode = getLayerNode(tx);
+        for (Relationship rel : layerNode.getRelationships()) {
+            System.out.printf("Unexpected relationship in layer %s: %s%n", getName(), rel);
+            rel.delete();
+        }
         layerNode.delete();
         layerNodeId = -1L;
     }
-
-    // Private methods
-
-//    protected GraphDatabaseService getDatabase() {
-//        return spatialDatabase.getDatabase();
-//    }
-
-
-    // Attributes
-
-    //private SpatialDatabaseService spatialDatabase;
-    private String name;
-    protected Long layerNodeId = -1L;
-    private GeometryEncoder geometryEncoder;
-    private GeometryFactory geometryFactory;
-    protected LayerIndexReader indexReader;
-    protected SpatialIndexWriter indexWriter;
 
     public SpatialDataset getDataset() {
         return this;
